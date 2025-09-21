@@ -86,12 +86,10 @@ func (cp *CardParser) LoadFromFile(filePath string) error {
 		// Try multiple separators
 		separators := []string{">>", "::", "|"}
 		var parts []string
-		var usedSeparator string
 
 		for _, sep := range separators {
 			if strings.Contains(line, sep) {
 				parts = strings.Split(line, sep)
-				usedSeparator = sep
 				break
 			}
 		}

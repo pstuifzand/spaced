@@ -172,6 +172,18 @@ func (sra *SpacedRepetitionApp) loadCards() {
 			return
 		}
 
+		// Show parse report if there were issues
+		if sra.parser.HasParseErrors() {
+			parseReport := sra.parser.GetParseReport()
+			dialog.ShowInformation("File Parse Report", parseReport, sra.window)
+		} else if sra.parser.GetCardCount() > 0 {
+			// Show success message for clean parse
+			result := sra.parser.GetParseResult()
+			successMsg := fmt.Sprintf("✅ Successfully loaded %d cards from %d lines.",
+				result.ValidCards, result.TotalLines)
+			dialog.ShowInformation("Cards Loaded", successMsg, sra.window)
+		}
+
 		if err := sra.fsrsManager.LoadState(); err != nil {
 			dialog.ShowError(err, sra.window)
 			return
@@ -198,7 +210,7 @@ func (sra *SpacedRepetitionApp) updateStats() {
 	total, due, reviewed := sra.fsrsManager.GetStats(allCards)
 
 	if total == 0 {
-		sra.statsLabel.SetText("📚 No cards loaded - Use File → Open Cards... to get started!")
+		sra.statsLabel.SetText("📚 No cards loaded - Use File → Open Cards... to get started!\n💡 Supports formats: question>>answer, question::answer, question|answer")
 		return
 	}
 
