@@ -1,0 +1,18 @@
+# Sample spaced repetition cards
+# Format: question>>answer
+
+What is the capital of France?>>Paris
+What is 2 + 2?>>4
+Who wrote "To be or not to be"?>>William Shakespeare
+What is the largest planet in our solar system?>>Jupiter
+What year did World War II end?>>1945
+What is the chemical symbol for gold?>>Au
+Who painted the Mona Lisa?>>Leonardo da Vinci
+What is the square root of 64?>>8
+What language is spoken in Brazil?>>Portuguese
+What is the smallest unit of matter?>>Atom
+What does CPU stand for?>>Central Processing Unit
+Who developed the theory of relativity?>>Albert Einstein
+What is the hardest natural substance?>>Diamond
+How many continents are there?>>7
+What is the largest ocean?>>Pacific Ocean
