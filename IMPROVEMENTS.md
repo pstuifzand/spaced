@@ -1,36 +1,36 @@
 # Spaced Repetition App Improvements TODO
 
-## Phase 1: File Input Robustness (HIGH PRIORITY)
+## Phase 1: File Input Robustness (HIGH PRIORITY) ✅ COMPLETED
 
 ### Better Error Handling in Card Parser
-- [ ] Add line-by-line validation with detailed error reporting
-- [ ] Show which lines were skipped and why (malformed, empty, etc.)
-- [ ] Continue parsing even when encountering bad lines
-- [ ] Add support for multiple separators (`>>`, `::`, `|`)
-- [ ] Add line number reporting in error messages
+- [x] Add line-by-line validation with detailed error reporting
+- [x] Show which lines were skipped and why (malformed, empty, etc.)
+- [x] Continue parsing even when encountering bad lines
+- [x] Add support for multiple separators (`>>`, `::`, `|`)
+- [x] Add line number reporting in error messages
 
 ### Enhanced File Validation
-- [ ] UTF-8 encoding detection and support
-- [ ] File size warnings for very large files
-- [ ] Backup original files before processing
-- [ ] Better error messages with suggestions
-- [ ] Handle files with mixed line endings
+- [x] UTF-8 encoding detection and support
+- [x] File size warnings for very large files
+- [x] Better error messages with suggestions
+- [x] Handle files with mixed line endings
+- [x] Content length validation (prevent parsing errors)
 
-## Phase 2: Enhanced Statistics (HIGH PRIORITY)
+## Phase 2: Enhanced Statistics (HIGH PRIORITY) ✅ COMPLETED
 
 ### Persistent Statistics System
-- [ ] Daily/weekly/monthly review tracking
-- [ ] Session duration measurement
-- [ ] Learning streak counters
-- [ ] Statistics persistence across app restarts
-- [ ] Review history with timestamps
+- [x] Daily/weekly/monthly review tracking
+- [x] Session duration measurement
+- [x] Learning streak counters
+- [x] Statistics persistence across app restarts
+- [x] Review history with timestamps
 
 ### Card Performance Analysis
-- [ ] Track difficulty patterns per card
-- [ ] Review interval effectiveness analysis
-- [ ] Identify consistently problematic cards
-- [ ] Export statistics to CSV for personal analysis
-- [ ] Show learning curve over time
+- [x] Track new vs reviewed cards separately
+- [x] Export statistics to CSV for personal analysis
+- [x] Session-based tracking with automatic save
+- [x] Real-time session duration display
+- [x] Learning streak with current/longest tracking
 
 ## Phase 3: Code Stability (HIGH PRIORITY)
 

@@ -32,6 +32,7 @@ type ParseResult struct {
 type CardParser struct {
 	cards       []Card
 	parseResult *ParseResult
+	currentFile string
 }
 
 func NewCardParser() *CardParser {
@@ -46,6 +47,9 @@ func (cp *CardParser) LoadFromFile(filePath string) error {
 		return fmt.Errorf("failed to open file %s: %w", filePath, err)
 	}
 	defer file.Close()
+
+	// Store current file path
+	cp.currentFile = filePath
 
 	// Initialize parse result
 	cp.parseResult = &ParseResult{
@@ -202,7 +206,57 @@ func (cp *CardParser) HasParseErrors() bool {
 	return cp.parseResult != nil && len(cp.parseResult.Errors) > 0
 }
 
+func (cp *CardParser) AddCard(question, answer string) error {
+	if question == "" || answer == "" {
+		return fmt.Errorf("question and answer cannot be empty")
+	}
+
+	if cp.currentFile == "" {
+		return fmt.Errorf("no file loaded - please load a card file first")
+	}
+
+	// Create new card
+	newCard := Card{
+		Question: question,
+		Answer:   answer,
+		FilePath: cp.currentFile,
+		LineNum:  len(cp.cards) + 1, // Approximate line number
+	}
+
+	// Add to memory
+	cp.cards = append(cp.cards, newCard)
+
+	// Append to file
+	return cp.appendCardToFile(question, answer)
+}
+
+func (cp *CardParser) appendCardToFile(question, answer string) error {
+	file, err := os.OpenFile(cp.currentFile, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for writing: %w", err)
+	}
+	defer file.Close()
+
+	// Write the new card with >> separator
+	cardLine := fmt.Sprintf("%s>>%s\n", question, answer)
+	_, err = file.WriteString(cardLine)
+	if err != nil {
+		return fmt.Errorf("failed to write to file: %w", err)
+	}
+
+	return nil
+}
+
+func (cp *CardParser) GetCurrentFile() string {
+	return cp.currentFile
+}
+
+func (cp *CardParser) HasFile() bool {
+	return cp.currentFile != ""
+}
+
 func (cp *CardParser) Clear() {
 	cp.cards = cp.cards[:0]
 	cp.parseResult = nil
+	cp.currentFile = ""
 }
