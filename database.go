@@ -28,11 +28,32 @@ func NewDatabase(dbPath string) (*Database, error) {
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
+	// Run migrations for existing databases
+	if err := database.migrateSchema(); err != nil {
+		return nil, fmt.Errorf("failed to migrate schema: %w", err)
+	}
+
 	return database, nil
 }
 
 func (d *Database) Close() error {
 	return d.db.Close()
+}
+
+func (d *Database) migrateSchema() error {
+	// Check if new columns exist, add them if they don't
+	migrations := []string{
+		`ALTER TABLE cards ADD COLUMN source_context TEXT`,
+		`ALTER TABLE cards ADD COLUMN prompt_type TEXT DEFAULT 'factual'`,
+		`ALTER TABLE cards ADD COLUMN tags TEXT`,
+	}
+
+	for _, migration := range migrations {
+		// Try to execute migration; it will fail if column already exists (which is fine)
+		d.db.Exec(migration)
+	}
+
+	return nil
 }
 
 func (d *Database) createTables() error {
@@ -43,6 +64,9 @@ func (d *Database) createTables() error {
 			answer TEXT NOT NULL,
 			source_file TEXT,
 			source_line INTEGER,
+			source_context TEXT,
+			prompt_type TEXT DEFAULT 'factual',
+			tags TEXT,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
@@ -101,13 +125,16 @@ func (d *Database) createTables() error {
 
 // Database card structure
 type DBCard struct {
-	ID         int64     `db:"id"`
-	Question   string    `db:"question"`
-	Answer     string    `db:"answer"`
-	SourceFile string    `db:"source_file"`
-	SourceLine int       `db:"source_line"`
-	CreatedAt  time.Time `db:"created_at"`
-	UpdatedAt  time.Time `db:"updated_at"`
+	ID            int64     `db:"id"`
+	Question      string    `db:"question"`
+	Answer        string    `db:"answer"`
+	SourceFile    string    `db:"source_file"`
+	SourceLine    int       `db:"source_line"`
+	SourceContext string    `db:"source_context"`
+	PromptType    string    `db:"prompt_type"`
+	Tags          string    `db:"tags"`
+	CreatedAt     time.Time `db:"created_at"`
+	UpdatedAt     time.Time `db:"updated_at"`
 }
 
 // Database review state structure

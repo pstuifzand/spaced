@@ -54,14 +54,20 @@ func NewSQLiteCardRepository(db *Database) *SQLiteCardRepository {
 }
 
 func (r *SQLiteCardRepository) Create(card *DBCard) error {
-	query := `INSERT INTO cards (question, answer, source_file, source_line, created_at, updated_at)
-			  VALUES (?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO cards (question, answer, source_file, source_line, source_context, prompt_type, tags, created_at, updated_at)
+			  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
 
 	now := time.Now()
 	card.CreatedAt = now
 	card.UpdatedAt = now
 
-	result, err := r.db.db.Exec(query, card.Question, card.Answer, card.SourceFile, card.SourceLine, now, now)
+	// Set default prompt type if not provided
+	if card.PromptType == "" {
+		card.PromptType = "factual"
+	}
+
+	result, err := r.db.db.Exec(query, card.Question, card.Answer, card.SourceFile, card.SourceLine,
+								card.SourceContext, card.PromptType, card.Tags, now, now)
 	if err != nil {
 		return fmt.Errorf("failed to create card: %w", err)
 	}
@@ -76,14 +82,15 @@ func (r *SQLiteCardRepository) Create(card *DBCard) error {
 }
 
 func (r *SQLiteCardRepository) GetByID(id int64) (*DBCard, error) {
-	query := `SELECT id, question, answer, source_file, source_line, created_at, updated_at
+	query := `SELECT id, question, answer, source_file, source_line, source_context, prompt_type, tags, created_at, updated_at
 			  FROM cards WHERE id = ?`
 
 	row := r.db.db.QueryRow(query, id)
 
 	card := &DBCard{}
 	err := row.Scan(&card.ID, &card.Question, &card.Answer, &card.SourceFile,
-					&card.SourceLine, &card.CreatedAt, &card.UpdatedAt)
+					&card.SourceLine, &card.SourceContext, &card.PromptType, &card.Tags,
+					&card.CreatedAt, &card.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get card: %w", err)
 	}
@@ -92,7 +99,7 @@ func (r *SQLiteCardRepository) GetByID(id int64) (*DBCard, error) {
 }
 
 func (r *SQLiteCardRepository) GetAll() ([]*DBCard, error) {
-	query := `SELECT id, question, answer, source_file, source_line, created_at, updated_at
+	query := `SELECT id, question, answer, source_file, source_line, source_context, prompt_type, tags, created_at, updated_at
 			  FROM cards ORDER BY created_at ASC`
 
 	rows, err := r.db.db.Query(query)
@@ -105,7 +112,8 @@ func (r *SQLiteCardRepository) GetAll() ([]*DBCard, error) {
 	for rows.Next() {
 		card := &DBCard{}
 		err := rows.Scan(&card.ID, &card.Question, &card.Answer, &card.SourceFile,
-						&card.SourceLine, &card.CreatedAt, &card.UpdatedAt)
+						&card.SourceLine, &card.SourceContext, &card.PromptType, &card.Tags,
+						&card.CreatedAt, &card.UpdatedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan card: %w", err)
 		}
@@ -117,12 +125,13 @@ func (r *SQLiteCardRepository) GetAll() ([]*DBCard, error) {
 
 func (r *SQLiteCardRepository) Update(card *DBCard) error {
 	query := `UPDATE cards SET question = ?, answer = ?, source_file = ?,
-			  source_line = ?, updated_at = ? WHERE id = ?`
+			  source_line = ?, source_context = ?, prompt_type = ?, tags = ?, updated_at = ? WHERE id = ?`
 
 	card.UpdatedAt = time.Now()
 
 	_, err := r.db.db.Exec(query, card.Question, card.Answer, card.SourceFile,
-						   card.SourceLine, card.UpdatedAt, card.ID)
+						   card.SourceLine, card.SourceContext, card.PromptType, card.Tags,
+						   card.UpdatedAt, card.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update card: %w", err)
 	}
@@ -143,10 +152,13 @@ func (r *SQLiteCardRepository) Delete(id int64) error {
 
 func (r *SQLiteCardRepository) ImportFromText(question, answer, sourceFile string, sourceLine int) (*DBCard, error) {
 	card := &DBCard{
-		Question:   question,
-		Answer:     answer,
-		SourceFile: sourceFile,
-		SourceLine: sourceLine,
+		Question:      question,
+		Answer:        answer,
+		SourceFile:    sourceFile,
+		SourceLine:    sourceLine,
+		SourceContext: "", // Will be empty for imported text files
+		PromptType:    "factual",
+		Tags:          "",
 	}
 
 	err := r.Create(card)

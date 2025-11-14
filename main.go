@@ -397,10 +397,24 @@ func (sra *SpacedRepetitionApp) nextCard() {
 	sra.currentIndex = (sra.currentIndex + 1) % len(sra.dueCards)
 	sra.currentCard = &sra.dueCards[sra.currentIndex]
 
-	// Simple approach: show remaining cards
+	// Build context information
+	var contextInfo string
+	if sra.currentCard.SourceContext != "" || !sra.currentCard.CreatedAt.IsZero() {
+		contextParts := []string{}
+		if sra.currentCard.SourceContext != "" {
+			contextParts = append(contextParts, fmt.Sprintf("📚 %s", sra.currentCard.SourceContext))
+		}
+		if !sra.currentCard.CreatedAt.IsZero() {
+			dateStr := sra.currentCard.CreatedAt.Format("2006-01-02")
+			contextParts = append(contextParts, fmt.Sprintf("Added %s", dateStr))
+		}
+		contextInfo = fmt.Sprintf("[%s]\n\n", strings.Join(contextParts, " • "))
+	}
+
+	// Display remaining cards and question with context
 	remaining := len(sra.dueCards)
-	cardPosition := fmt.Sprintf("📊 %d cards remaining\n\n%s",
-		remaining, sra.currentCard.Question)
+	cardPosition := fmt.Sprintf("📊 %d cards remaining\n\n%s%s",
+		remaining, contextInfo, sra.currentCard.Question)
 
 	sra.questionLabel.SetText(cardPosition)
 	sra.answerLabel.SetText("") // Clear answer text but keep label visible
@@ -414,7 +428,25 @@ func (sra *SpacedRepetitionApp) showAnswer() {
 		return
 	}
 
-	answerText := fmt.Sprintf("💡 Answer:\n\n%s", sra.currentCard.Answer)
+	// Add prompt type indicator if available
+	promptTypeIndicator := ""
+	switch sra.currentCard.PromptType {
+	case "conceptual":
+		promptTypeIndicator = "🧠 Conceptual"
+	case "application":
+		promptTypeIndicator = "⚙️ Application"
+	case "comparison":
+		promptTypeIndicator = "⚖️ Comparison"
+	case "factual":
+		promptTypeIndicator = "📝 Factual"
+	}
+
+	answerHeader := "💡 Answer"
+	if promptTypeIndicator != "" {
+		answerHeader = fmt.Sprintf("💡 Answer (%s)", promptTypeIndicator)
+	}
+
+	answerText := fmt.Sprintf("%s:\n\n%s", answerHeader, sra.currentCard.Answer)
 	sra.answerLabel.SetText(answerText)
 	sra.showAnswerBtn.Hide()
 	sra.ratingContainer.Show()
@@ -551,131 +583,163 @@ func (sra *SpacedRepetitionApp) showAddCardDialog() {
 		return
 	}
 
-	// Create multiline entry widget for multiple cards
-	cardsEntry := widget.NewMultiLineEntry()
-	cardsEntry.SetPlaceHolder("Enter cards in format:\nQuestion 1>>Answer 1\nQuestion 2>>Answer 2\n...")
-	cardsEntry.Resize(fyne.NewSize(500, 200))
+	// Create input fields
+	questionEntry := widget.NewMultiLineEntry()
+	questionEntry.SetPlaceHolder("Enter your question...")
+	questionEntry.Wrapping = fyne.TextWrapWord
+	questionEntry.SetMinRowsVisible(3)
+
+	answerEntry := widget.NewMultiLineEntry()
+	answerEntry.SetPlaceHolder("Enter the answer...")
+	answerEntry.Wrapping = fyne.TextWrapWord
+	answerEntry.SetMinRowsVisible(3)
+
+	sourceEntry := widget.NewEntry()
+	sourceEntry.SetPlaceHolder("Book, article, or project (optional)")
+
+	tagsEntry := widget.NewEntry()
+	tagsEntry.SetPlaceHolder("e.g., #golang #algorithms (optional)")
+
+	// Prompt type radio buttons
+	var promptType string = "conceptual"
+	promptTypeGroup := widget.NewRadioGroup([]string{
+		"Factual Recall",
+		"Conceptual",
+		"Application",
+		"Comparison",
+	}, func(value string) {
+		promptType = value
+	})
+	promptTypeGroup.SetSelected("Conceptual")
+	promptTypeGroup.Horizontal = false
+
+	// Tips based on prompt type
+	tipLabel := widget.NewLabel("💡 Tip: Conceptual prompts build deeper understanding than simple definitions. Ask 'why' and 'how' questions.")
+	tipLabel.Wrapping = fyne.TextWrapWord
+
+	// Update tip when prompt type changes
+	promptTypeGroup.OnChanged = func(value string) {
+		switch value {
+		case "Factual Recall":
+			tipLabel.SetText("💡 Tip: Use for basic facts and definitions. Keep questions atomic and focused on one piece of information.")
+		case "Conceptual":
+			tipLabel.SetText("💡 Tip: Ask 'why' and 'how' questions to build deeper understanding. Focus on relationships and mechanisms.")
+		case "Application":
+			tipLabel.SetText("💡 Tip: Ask 'when would you use X?' or 'give an example of X in context Y'. Promotes transfer of knowledge.")
+		case "Comparison":
+			tipLabel.SetText("💡 Tip: Ask about differences and similarities. Helps build relational understanding between concepts.")
+		}
+	}
 
 	// Create buttons
 	addButton := widget.NewButton("Add Card", nil)
 	addButton.Importance = widget.HighImportance
 
+	addAnotherButton := widget.NewButton("Add & Create Another", nil)
 	cancelButton := widget.NewButton("Cancel", nil)
 
-	// Create form
+	// Create form layout
 	form := container.NewVBox(
-		widget.NewLabelWithStyle("Add New Cards", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
+		widget.NewLabelWithStyle("Add New Card", fyne.TextAlignCenter, fyne.TextStyle{Bold: true}),
 		widget.NewSeparator(),
-		widget.NewLabel("Cards (one per line, format: question>>answer):"),
-		cardsEntry,
+
+		widget.NewLabel("Question:"),
+		questionEntry,
+
+		widget.NewLabel("Answer:"),
+		answerEntry,
+
 		widget.NewSeparator(),
-		container.NewHBox(addButton, cancelButton),
+		widget.NewLabel("Prompt Type:"),
+		promptTypeGroup,
+		container.NewPadded(tipLabel),
+
+		widget.NewSeparator(),
+		widget.NewLabel("Source (optional):"),
+		sourceEntry,
+
+		widget.NewLabel("Tags (optional):"),
+		tagsEntry,
+
+		widget.NewSeparator(),
+		container.NewHBox(addButton, addAnotherButton, cancelButton),
 	)
 
 	// Create custom dialog window without the framework's close button
 	addDialog := dialog.NewCustomWithoutButtons("Add Card", form, sra.window)
 
-	// Function to add the cards
-	addCards := func() {
-		text := strings.TrimSpace(cardsEntry.Text)
-		if text == "" {
-			dialog.ShowError(fmt.Errorf("please enter at least one card"), sra.window)
+	// Function to add the card
+	addCard := func(closeDialog bool) {
+		question := strings.TrimSpace(questionEntry.Text)
+		answer := strings.TrimSpace(answerEntry.Text)
+
+		if question == "" {
+			dialog.ShowError(fmt.Errorf("question cannot be empty"), sra.window)
+			return
+		}
+		if answer == "" {
+			dialog.ShowError(fmt.Errorf("answer cannot be empty"), sra.window)
 			return
 		}
 
-		// Parse lines and add cards
-		lines := strings.Split(text, "\n")
-		var addedCount int
-		var errors []string
+		source := strings.TrimSpace(sourceEntry.Text)
+		tags := strings.TrimSpace(tagsEntry.Text)
 
-		for i, line := range lines {
-			line = strings.TrimSpace(line)
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue // Skip empty lines and comments
-			}
+		// Map prompt type display name to internal value
+		promptTypeValue := "factual"
+		switch promptType {
+		case "Factual Recall":
+			promptTypeValue = "factual"
+		case "Conceptual":
+			promptTypeValue = "conceptual"
+		case "Application":
+			promptTypeValue = "application"
+		case "Comparison":
+			promptTypeValue = "comparison"
+		}
 
-			// Parse question>>answer format
-			parts := strings.Split(line, ">>")
-			if len(parts) != 2 {
-				errors = append(errors, fmt.Sprintf("Line %d: Invalid format (use question>>answer)", i+1))
-				continue
-			}
-
-			question := strings.TrimSpace(parts[0])
-			answer := strings.TrimSpace(parts[1])
-
-			if question == "" || answer == "" {
-				errors = append(errors, fmt.Sprintf("Line %d: Question and answer cannot be empty", i+1))
-				continue
-			}
-
-			// Add the card
-			if err := sra.parser.AddCard(question, answer); err != nil {
-				errors = append(errors, fmt.Sprintf("Line %d: %v", i+1, err))
-				continue
-			}
-			addedCount++
+		// Add the card with new fields
+		if err := sra.parser.AddCardWithMetadata(question, answer, source, promptTypeValue, tags); err != nil {
+			dialog.ShowError(fmt.Errorf("failed to add card: %w", err), sra.window)
+			return
 		}
 
 		// Update the UI
 		sra.updateDueCards()
 		sra.updateStats()
 
-		// Show results
-		fileName := filepath.Base(sra.parser.GetCurrentFile())
-		if len(errors) > 0 {
-			errorMsg := fmt.Sprintf("Added %d cards to %s\n\nErrors:\n%s",
-				addedCount, fileName, strings.Join(errors, "\n"))
-			dialog.ShowInformation("Cards Added with Errors", errorMsg, sra.window)
+		if closeDialog {
+			dialog.ShowInformation("Card Added",
+				"Card has been successfully added.", sra.window)
+			addDialog.Hide()
 		} else {
-			dialog.ShowInformation("Cards Added",
-				fmt.Sprintf("Added %d cards to %s", addedCount, fileName), sra.window)
+			// Clear fields for next card
+			questionEntry.SetText("")
+			answerEntry.SetText("")
+			sourceEntry.SetText("")
+			tagsEntry.SetText("")
+			// Keep prompt type and focus on question field
+			sra.window.Canvas().Focus(questionEntry)
 		}
-
-		// Close dialog
-		addDialog.Hide()
 	}
 
 	// Set button actions
-	addButton.OnTapped = addCards
+	addButton.OnTapped = func() {
+		addCard(true)
+	}
+	addAnotherButton.OnTapped = func() {
+		addCard(false)
+	}
 	cancelButton.OnTapped = func() {
 		addDialog.Hide()
-	}
-
-	// Add custom key handling for Ctrl+Enter to submit
-	cardsEntry.OnSubmitted = func(text string) {
-		// This won't be called for multiline entries, but we keep it for consistency
 	}
 
 	// Store original key handler
 	originalSetup := sra.setupKeyboardShortcuts
 
-	// Custom key event handling for tab navigation and Ctrl+Enter submission
+	// Custom key event handling for tab navigation and shortcuts
 	sra.window.Canvas().SetOnTypedKey(func(key *fyne.KeyEvent) {
 		switch key.Name {
-		case fyne.KeyTab:
-			// Handle tab navigation
-			focused := sra.window.Canvas().Focused()
-			if focused == cardsEntry {
-				sra.window.Canvas().Focus(addButton)
-				return
-			} else if focused == addButton {
-				sra.window.Canvas().Focus(cancelButton)
-				return
-			} else if focused == cancelButton {
-				sra.window.Canvas().Focus(cardsEntry)
-				return
-			}
-		case fyne.KeyReturn, fyne.KeyEnter:
-			// Handle Enter on buttons
-			focused := sra.window.Canvas().Focused()
-			if focused == addButton {
-				addCards()
-				return
-			} else if focused == cancelButton {
-				addDialog.Hide()
-				return
-			}
 		case fyne.KeyEscape:
 			// Escape to cancel
 			addDialog.Hide()
@@ -695,19 +759,11 @@ func (sra *SpacedRepetitionApp) showAddCardDialog() {
 		originalSetup()
 	})
 
-	addDialog.Resize(fyne.NewSize(500, 450))
+	addDialog.Resize(fyne.NewSize(600, 700))
 	addDialog.Show()
 
-	// Focus on cards field and clear any stray characters
-	sra.window.Canvas().Focus(cardsEntry)
-
-	// Use a short delay to clear any stray keystrokes that opened the dialog
-	go func() {
-		time.Sleep(50 * time.Millisecond)
-		fyne.Do(func() {
-			cardsEntry.SetText("")
-		})
-	}()
+	// Focus on question field
+	sra.window.Canvas().Focus(questionEntry)
 }
 
 func (sra *SpacedRepetitionApp) showCardManagementDialog() {

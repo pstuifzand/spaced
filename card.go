@@ -10,11 +10,15 @@ import (
 )
 
 type Card struct {
-	ID       int64  // Database ID (0 for file-based cards)
-	Question string
-	Answer   string
-	FilePath string
-	LineNum  int
+	ID            int64     // Database ID (0 for file-based cards)
+	Question      string
+	Answer        string
+	FilePath      string
+	LineNum       int
+	SourceContext string    // Book, article, project name
+	PromptType    string    // factual, conceptual, application, comparison
+	Tags          string    // Comma-separated tags
+	CreatedAt     time.Time // When the card was created
 }
 
 type ParseError struct {
@@ -204,11 +208,15 @@ func (cp *CardParser) GetCards() []Card {
 		var cards []Card
 		for _, dbCard := range dbCards {
 			card := Card{
-				ID:       dbCard.ID,
-				Question: dbCard.Question,
-				Answer:   dbCard.Answer,
-				FilePath: dbCard.SourceFile,
-				LineNum:  dbCard.SourceLine,
+				ID:            dbCard.ID,
+				Question:      dbCard.Question,
+				Answer:        dbCard.Answer,
+				FilePath:      dbCard.SourceFile,
+				LineNum:       dbCard.SourceLine,
+				SourceContext: dbCard.SourceContext,
+				PromptType:    dbCard.PromptType,
+				Tags:          dbCard.Tags,
+				CreatedAt:     dbCard.CreatedAt,
 			}
 			cards = append(cards, card)
 		}
@@ -264,6 +272,10 @@ func (cp *CardParser) HasParseErrors() bool {
 }
 
 func (cp *CardParser) AddCard(question, answer string) error {
+	return cp.AddCardWithMetadata(question, answer, "", "factual", "")
+}
+
+func (cp *CardParser) AddCardWithMetadata(question, answer, source, promptType, tags string) error {
 	if question == "" || answer == "" {
 		return fmt.Errorf("question and answer cannot be empty")
 	}
@@ -278,8 +290,17 @@ func (cp *CardParser) AddCard(question, answer string) error {
 			return fmt.Errorf("card with this question and answer already exists")
 		}
 
-		// Add to database
-		_, err = cp.cardRepo.ImportFromText(question, answer, cp.currentFile, len(cp.cards)+1)
+		// Add to database with metadata
+		dbCard := &DBCard{
+			Question:      question,
+			Answer:        answer,
+			SourceFile:    cp.currentFile,
+			SourceLine:    len(cp.cards) + 1,
+			SourceContext: source,
+			PromptType:    promptType,
+			Tags:          tags,
+		}
+		err = cp.cardRepo.Create(dbCard)
 		if err != nil {
 			return fmt.Errorf("failed to add card to database: %w", err)
 		}
@@ -287,10 +308,14 @@ func (cp *CardParser) AddCard(question, answer string) error {
 
 	// Create new card for memory cache
 	newCard := Card{
-		Question: question,
-		Answer:   answer,
-		FilePath: cp.currentFile,
-		LineNum:  len(cp.cards) + 1,
+		Question:      question,
+		Answer:        answer,
+		FilePath:      cp.currentFile,
+		LineNum:       len(cp.cards) + 1,
+		SourceContext: source,
+		PromptType:    promptType,
+		Tags:          tags,
+		CreatedAt:     time.Now(),
 	}
 
 	// Add to memory
