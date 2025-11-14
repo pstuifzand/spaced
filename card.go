@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 	"unicode/utf8"
 )
 
 type Card struct {
+	ID       int64  // Database ID (0 for file-based cards)
 	Question string
 	Answer   string
 	FilePath string
@@ -33,11 +35,13 @@ type CardParser struct {
 	cards       []Card
 	parseResult *ParseResult
 	currentFile string
+	cardRepo    CardRepository
 }
 
-func NewCardParser() *CardParser {
+func NewCardParserWithDatabase(cardRepo CardRepository) *CardParser {
 	return &CardParser{
-		cards: make([]Card, 0),
+		cards:    make([]Card, 0),
+		cardRepo: cardRepo,
 	}
 }
 
@@ -150,9 +154,34 @@ func (cp *CardParser) LoadFromFile(filePath string) error {
 			LineNum:  lineNum,
 		}
 
+		// Store in memory for immediate access
 		cp.cards = append(cp.cards, card)
 		cp.parseResult.Cards = append(cp.parseResult.Cards, card)
 		cp.parseResult.ValidCards++
+
+		// Store in database
+		if cp.cardRepo != nil {
+			// Check if card already exists to avoid duplicates
+			exists, err := cp.cardRepo.CardExists(question, answer)
+			if err != nil {
+				cp.parseResult.Errors = append(cp.parseResult.Errors, ParseError{
+					LineNum: lineNum,
+					Line:    line,
+					Reason:  fmt.Sprintf("Failed to check card existence: %v", err),
+				})
+			} else if !exists {
+				// Only import if card doesn't exist
+				_, err := cp.cardRepo.ImportFromText(question, answer, filePath, lineNum)
+				if err != nil {
+					// Log error but continue processing other cards
+					cp.parseResult.Errors = append(cp.parseResult.Errors, ParseError{
+						LineNum: lineNum,
+						Line:    line,
+						Reason:  fmt.Sprintf("Database import failed: %v", err),
+					})
+				}
+			}
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -163,10 +192,38 @@ func (cp *CardParser) LoadFromFile(filePath string) error {
 }
 
 func (cp *CardParser) GetCards() []Card {
+	// Load cards from database
+	if cp.cardRepo != nil {
+		dbCards, err := cp.cardRepo.GetAll()
+		if err != nil {
+			// Fall back to in-memory cards if database fails
+			return cp.cards
+		}
+
+		// Convert DB cards to Card structs
+		var cards []Card
+		for _, dbCard := range dbCards {
+			card := Card{
+				ID:       dbCard.ID,
+				Question: dbCard.Question,
+				Answer:   dbCard.Answer,
+				FilePath: dbCard.SourceFile,
+				LineNum:  dbCard.SourceLine,
+			}
+			cards = append(cards, card)
+		}
+		return cards
+	}
+
 	return cp.cards
 }
 
 func (cp *CardParser) GetCardCount() int {
+	// Get count from database
+	if cp.cardRepo != nil {
+		cards := cp.GetCards()
+		return len(cards)
+	}
 	return len(cp.cards)
 }
 
@@ -211,37 +268,73 @@ func (cp *CardParser) AddCard(question, answer string) error {
 		return fmt.Errorf("question and answer cannot be empty")
 	}
 
-	if cp.currentFile == "" {
-		return fmt.Errorf("no file loaded - please load a card file first")
+	// Check if card already exists
+	if cp.cardRepo != nil {
+		exists, err := cp.cardRepo.CardExists(question, answer)
+		if err != nil {
+			return fmt.Errorf("failed to check if card exists: %w", err)
+		}
+		if exists {
+			return fmt.Errorf("card with this question and answer already exists")
+		}
+
+		// Add to database
+		_, err = cp.cardRepo.ImportFromText(question, answer, cp.currentFile, len(cp.cards)+1)
+		if err != nil {
+			return fmt.Errorf("failed to add card to database: %w", err)
+		}
 	}
 
-	// Create new card
+	// Create new card for memory cache
 	newCard := Card{
 		Question: question,
 		Answer:   answer,
 		FilePath: cp.currentFile,
-		LineNum:  len(cp.cards) + 1, // Approximate line number
+		LineNum:  len(cp.cards) + 1,
 	}
 
 	// Add to memory
 	cp.cards = append(cp.cards, newCard)
 
-	// Append to file
-	return cp.appendCardToFile(question, answer)
+	return nil
 }
 
-func (cp *CardParser) appendCardToFile(question, answer string) error {
-	file, err := os.OpenFile(cp.currentFile, os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open file for writing: %w", err)
+func (cp *CardParser) UpdateCard(cardID int64, question, answer string) error {
+	if question == "" || answer == "" {
+		return fmt.Errorf("question and answer cannot be empty")
 	}
-	defer file.Close()
 
-	// Write the new card with >> separator
-	cardLine := fmt.Sprintf("%s>>%s\n", question, answer)
-	_, err = file.WriteString(cardLine)
+	if cp.cardRepo == nil {
+		return fmt.Errorf("no database repository available")
+	}
+
+	// Get the existing card
+	existingCard, err := cp.cardRepo.GetByID(cardID)
 	if err != nil {
-		return fmt.Errorf("failed to write to file: %w", err)
+		return fmt.Errorf("failed to get card: %w", err)
+	}
+
+	// Update the card
+	existingCard.Question = question
+	existingCard.Answer = answer
+	existingCard.UpdatedAt = time.Now()
+
+	err = cp.cardRepo.Update(existingCard)
+	if err != nil {
+		return fmt.Errorf("failed to update card: %w", err)
+	}
+
+	return nil
+}
+
+func (cp *CardParser) DeleteCard(cardID int64) error {
+	if cp.cardRepo == nil {
+		return fmt.Errorf("no database repository available")
+	}
+
+	err := cp.cardRepo.Delete(cardID)
+	if err != nil {
+		return fmt.Errorf("failed to delete card: %w", err)
 	}
 
 	return nil
