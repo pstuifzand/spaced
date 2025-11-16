@@ -779,7 +779,9 @@ func (sra *SpacedRepetitionApp) showCardManagementDialog() {
 	}
 
 	// Function to recreate the card list entirely
-	updateList := func() {
+	// Declare first to allow self-reference in closures
+	var updateList func()
+	updateList = func() {
 		if searchEntry == nil {
 			filteredCards = allCards
 		} else {
@@ -807,13 +809,7 @@ func (sra *SpacedRepetitionApp) showCardManagementDialog() {
 				cardWidget := sra.createCardWidget(card, func() {
 					// Refresh callback for deletion - reload cards and refresh display
 					refreshCards()
-					// Force container update by clearing and rebuilding
-					cardContainer.RemoveAll()
-					for _, newCard := range filteredCards {
-						newWidget := sra.createCardWidget(newCard, nil) // Pass nil to avoid infinite recursion
-						cardContainer.Add(newWidget)
-					}
-					cardContainer.Refresh()
+					updateList()
 				})
 				cardContainer.Add(cardWidget)
 			}
@@ -1217,4 +1213,3 @@ func main() {
 
 	app.window.ShowAndRun()
 }
-
