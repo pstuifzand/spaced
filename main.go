@@ -775,7 +775,7 @@ func (sra *SpacedRepetitionApp) showCardManagementDialog() {
 		oldCount := len(allCards)
 		allCards = sra.parser.GetCards()
 		filteredCards = allCards
-		fmt.Printf("DEBUG: refreshCards - old count: %d, new count: %d\n", oldCount, len(allCards))
+		fmt.Printf("DEBUG: refreshCards - old count: %d, new count: %d, allCards ptr: %p\n", oldCount, len(allCards), &allCards)
 	}
 
 	// Function to recreate the card list entirely
@@ -799,23 +799,28 @@ func (sra *SpacedRepetitionApp) showCardManagementDialog() {
 			}
 		}
 
-		if cardContainer != nil {
+		if cardContainer != nil && scrollableList != nil {
 			fmt.Printf("DEBUG: updateList - filteredCards count: %d\n", len(filteredCards))
-			// Clear and recreate the container contents
-			cardContainer.RemoveAll()
+
+			// Create a completely new container to avoid state issues
+			newContainer := container.NewVBox()
 
 			// Add each card as a separate widget
 			for _, c := range filteredCards {
 				card := c // Explicitly capture loop variable to avoid closure issues
 				cardWidget := sra.createCardWidget(card, func() {
 					// Refresh callback for deletion - reload cards and refresh display
+					fmt.Printf("DEBUG: Deletion callback triggered\n")
 					refreshCards()
 					updateList()
 				})
-				cardContainer.Add(cardWidget)
+				newContainer.Add(cardWidget)
 			}
 
-			cardContainer.Refresh()
+			// Replace the content of the scroll container
+			cardContainer = newContainer
+			scrollableList.Content = cardContainer
+			scrollableList.Refresh()
 		}
 	}
 
@@ -1109,6 +1114,8 @@ func (sra *SpacedRepetitionApp) confirmDeleteCardFromManagement(cardID int64, qu
 }
 
 func (sra *SpacedRepetitionApp) deleteCardFromManagement(cardID int64, refreshCallback func()) {
+	fmt.Printf("DEBUG: deleteCardFromManagement called for card ID %d, callback is nil: %v\n", cardID, refreshCallback == nil)
+
 	// Delete the FSRS review state first (if it exists)
 	if err := sra.fsrsManager.DeleteCardState(cardID); err != nil {
 		// Log but don't fail - the review state might not exist
@@ -1120,6 +1127,7 @@ func (sra *SpacedRepetitionApp) deleteCardFromManagement(cardID int64, refreshCa
 		dialog.ShowError(fmt.Errorf("failed to delete card: %w", err), sra.window)
 		return
 	}
+	fmt.Printf("DEBUG: Card %d deleted from database\n", cardID)
 
 	// Update the main UI
 	sra.updateDueCards()
@@ -1128,7 +1136,11 @@ func (sra *SpacedRepetitionApp) deleteCardFromManagement(cardID int64, refreshCa
 
 	// Call the refresh callback to update the management dialog
 	if refreshCallback != nil {
+		fmt.Printf("DEBUG: About to call refreshCallback\n")
 		refreshCallback()
+		fmt.Printf("DEBUG: refreshCallback completed\n")
+	} else {
+		fmt.Printf("DEBUG: refreshCallback is nil, skipping refresh\n")
 	}
 }
 
