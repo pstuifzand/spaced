@@ -162,6 +162,37 @@ func migrateStatistics(dailyStatsRepo DailyStatsRepository) error {
 	return nil
 }
 
+// EnsureJSONFilesExist creates the state and stats JSON files if they don't exist
+func EnsureJSONFilesExist() error {
+	files := map[string]interface{}{
+		"./spaced_repetition_state.json": map[string]interface{}{},
+		"./spaced_repetition_stats.json": map[string]interface{}{
+			"daily_stats":     map[string]interface{}{},
+			"learning_streak": map[string]interface{}{},
+		},
+	}
+
+	for filePath, defaultContent := range files {
+		if _, err := os.Stat(filePath); err == nil {
+			// File already exists, skip
+			continue
+		}
+
+		data, err := json.MarshalIndent(defaultContent, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal JSON for %s: %w", filePath, err)
+		}
+
+		if err := os.WriteFile(filePath, data, 0644); err != nil {
+			return fmt.Errorf("failed to create JSON file %s: %w", filePath, err)
+		}
+
+		fmt.Printf("Created JSON file: %s\n", filePath)
+	}
+
+	return nil
+}
+
 // Backup existing JSON files before migration
 func BackupJSONFiles() error {
 	timestamp := time.Now().Format("20060102_150405")

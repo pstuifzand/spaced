@@ -125,16 +125,16 @@ func (d *Database) createTables() error {
 
 // Database card structure
 type DBCard struct {
-	ID            int64     `db:"id"`
-	Question      string    `db:"question"`
-	Answer        string    `db:"answer"`
-	SourceFile    string    `db:"source_file"`
-	SourceLine    int       `db:"source_line"`
-	SourceContext string    `db:"source_context"`
-	PromptType    string    `db:"prompt_type"`
-	Tags          string    `db:"tags"`
-	CreatedAt     time.Time `db:"created_at"`
-	UpdatedAt     time.Time `db:"updated_at"`
+	ID            int64          `db:"id"`
+	Question      string         `db:"question"`
+	Answer        string         `db:"answer"`
+	SourceFile    string         `db:"source_file"`
+	SourceLine    int            `db:"source_line"`
+	SourceContext sql.NullString `db:"source_context"`
+	PromptType    string         `db:"prompt_type"`
+	Tags          string         `db:"tags"`
+	CreatedAt     time.Time      `db:"created_at"`
+	UpdatedAt     time.Time      `db:"updated_at"`
 }
 
 // Database review state structure

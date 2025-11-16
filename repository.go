@@ -1,6 +1,7 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -156,7 +157,7 @@ func (r *SQLiteCardRepository) ImportFromText(question, answer, sourceFile strin
 		Answer:        answer,
 		SourceFile:    sourceFile,
 		SourceLine:    sourceLine,
-		SourceContext: "", // Will be empty for imported text files
+		SourceContext: sql.NullString{String: "", Valid: false}, // Will be empty for imported text files
 		PromptType:    "factual",
 		Tags:          "",
 	}

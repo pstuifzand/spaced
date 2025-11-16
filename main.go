@@ -5,10 +5,8 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"path/filepath"
 	"strings"
 	"syscall"
-	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/app"
@@ -20,24 +18,24 @@ import (
 )
 
 type SpacedRepetitionApp struct {
-	app        fyne.App
-	window     fyne.Window
-	parser     *CardParser
-	fsrsManager *FSRSManager
+	app          fyne.App
+	window       fyne.Window
+	parser       *CardParser
+	fsrsManager  *FSRSManager
 	statsManager *StatisticsManager
-	database   *Database
+	database     *Database
 
-	currentCard    *Card
-	currentIndex   int
-	dueCards      []Card
+	currentCard          *Card
+	currentIndex         int
+	dueCards             []Card
 	sessionCardsReviewed int
-	initialDueCount     int
+	initialDueCount      int
 
-	questionLabel  *widget.Label
-	answerLabel    *widget.Label
-	showAnswerBtn  *widget.Button
+	questionLabel   *widget.Label
+	answerLabel     *widget.Label
+	showAnswerBtn   *widget.Button
 	ratingContainer *fyne.Container
-	statsLabel     *widget.Label
+	statsLabel      *widget.Label
 
 	showingAnswer  bool
 	sessionStarted bool
@@ -65,16 +63,16 @@ func NewSpacedRepetitionApp() *SpacedRepetitionApp {
 	dailyStatsRepo := NewSQLiteDailyStatsRepository(database)
 
 	sra := &SpacedRepetitionApp{
-		app:          myApp,
-		window:       window,
-		parser:       NewCardParserWithDatabase(cardRepo),
-		fsrsManager:  NewFSRSManagerWithDatabase(reviewRepo),
-		statsManager: NewStatisticsManagerWithDatabase(sessionRepo, dailyStatsRepo),
-		database:     database,
-		currentIndex: -1,
+		app:                  myApp,
+		window:               window,
+		parser:               NewCardParserWithDatabase(cardRepo),
+		fsrsManager:          NewFSRSManagerWithDatabase(reviewRepo),
+		statsManager:         NewStatisticsManagerWithDatabase(sessionRepo, dailyStatsRepo),
+		database:             database,
+		currentIndex:         -1,
 		sessionCardsReviewed: 0,
-		initialDueCount:     0,
-		sessionStarted: false,
+		initialDueCount:      0,
+		sessionStarted:       false,
 	}
 
 	// Setup menu bar
@@ -300,7 +298,6 @@ func (sra *SpacedRepetitionApp) loadCards() {
 		sra.resetSession()
 		sra.updateStats()
 		sra.nextCard()
-
 	}, sra.window)
 
 	fileDialog.SetFilter(storage.NewExtensionFileFilter([]string{".txt"}))
@@ -747,7 +744,7 @@ func (sra *SpacedRepetitionApp) showAddCardDialog() {
 		default:
 			// For other keys, check if it's study-related and handle appropriately
 			if key.Name == fyne.KeyS || key.Name == fyne.Key1 || key.Name == fyne.Key2 ||
-			   key.Name == fyne.Key3 || key.Name == fyne.Key4 {
+				key.Name == fyne.Key3 || key.Name == fyne.Key4 {
 				// Ignore study shortcuts while in dialog
 				return
 			}
@@ -793,7 +790,7 @@ func (sra *SpacedRepetitionApp) showCardManagementDialog() {
 				filteredCards = nil
 				for _, card := range allCards {
 					if strings.Contains(strings.ToLower(card.Question), searchText) ||
-					   strings.Contains(strings.ToLower(card.Answer), searchText) {
+						strings.Contains(strings.ToLower(card.Answer), searchText) {
 						filteredCards = append(filteredCards, card)
 					}
 				}
@@ -1188,6 +1185,11 @@ func main() {
 
 	// Perform one-time migration if using database
 	if app.database != nil {
+		// Ensure JSON files exist for legacy support
+		if err := EnsureJSONFilesExist(); err != nil {
+			log.Printf("Failed to ensure JSON files exist: %v", err)
+		}
+
 		// Backup existing JSON files before migration
 		if err := BackupJSONFiles(); err != nil {
 			log.Printf("Failed to backup JSON files: %v", err)
@@ -1215,3 +1217,4 @@ func main() {
 
 	app.window.ShowAndRun()
 }
+

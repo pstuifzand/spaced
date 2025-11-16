@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -207,13 +208,17 @@ func (cp *CardParser) GetCards() []Card {
 		// Convert DB cards to Card structs
 		var cards []Card
 		for _, dbCard := range dbCards {
+			sourceContext := ""
+			if dbCard.SourceContext.Valid {
+				sourceContext = dbCard.SourceContext.String
+			}
 			card := Card{
 				ID:            dbCard.ID,
 				Question:      dbCard.Question,
 				Answer:        dbCard.Answer,
 				FilePath:      dbCard.SourceFile,
 				LineNum:       dbCard.SourceLine,
-				SourceContext: dbCard.SourceContext,
+				SourceContext: sourceContext,
 				PromptType:    dbCard.PromptType,
 				Tags:          dbCard.Tags,
 				CreatedAt:     dbCard.CreatedAt,
@@ -291,12 +296,13 @@ func (cp *CardParser) AddCardWithMetadata(question, answer, source, promptType, 
 		}
 
 		// Add to database with metadata
+		sourceContext := sql.NullString{String: source, Valid: source != ""}
 		dbCard := &DBCard{
 			Question:      question,
 			Answer:        answer,
 			SourceFile:    cp.currentFile,
 			SourceLine:    len(cp.cards) + 1,
-			SourceContext: source,
+			SourceContext: sourceContext,
 			PromptType:    promptType,
 			Tags:          tags,
 		}
