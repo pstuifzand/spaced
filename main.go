@@ -805,7 +805,8 @@ func (sra *SpacedRepetitionApp) showCardManagementDialog() {
 			cardContainer.RemoveAll()
 
 			// Add each card as a separate widget
-			for _, card := range filteredCards {
+			for _, c := range filteredCards {
+				card := c // Explicitly capture loop variable to avoid closure issues
 				cardWidget := sra.createCardWidget(card, func() {
 					// Refresh callback for deletion - reload cards and refresh display
 					refreshCards()
